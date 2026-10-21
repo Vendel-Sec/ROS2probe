@@ -1,0 +1,62 @@
+# --------------------------------------------------------------------------- #
+# Python
+# --------------------------------------------------------------------------- #
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Packaging and build output
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+.eggs/
+MANIFEST
+
+# Environments. uv puts the venv here by default.
+.venv/
+venv/
+env/
+# uv.lock is tracked on purpose: it is what makes a run reproducible.
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+.tox/
+.nox/
+.cache/
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Type checker and interpreter leftovers
+*.pyc
+.python-version
+cython_debug/
+
+# --------------------------------------------------------------------------- #
+# Editors and OS
+# --------------------------------------------------------------------------- #
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --------------------------------------------------------------------------- #
+# Project
+# --------------------------------------------------------------------------- #
+# Captures and reports produced by a run
+*.pcap
+report.html
+report.json
+
+# Evidence logs
+/evidence/

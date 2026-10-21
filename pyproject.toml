@@ -1,0 +1,136 @@
+[project]
+name = "ros2probe"
+version = "0.1.0"
+description = "Attack-tree test suite for a ROS 2 / DDS-Security target"
+readme = "README.md"
+# 3.11 for enum.StrEnum, which several models rely on. ROS 2 Jazzy ships Python
+# 3.12, so this floor only matters for running the artefact backend off-box.
+requires-python = ">=3.11"
+license = { text = "Proprietary, Vendel internal" }
+dependencies = [
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "pyyaml>=6.0",
+    "json5>=0.9",
+    "pytest>=8.0",
+    "websockets>=13.0",
+    "cryptography>=42.0",
+    "scapy>=2.6",
+    "numpy>=2.4.6",
+]
+
+[project.optional-dependencies]
+# Host backend over SSH without relying on the openssh client being present.
+ssh = ["paramiko>=3.4"]
+report = ["pytest-html>=4.1", "pytest-json-report>=1.5"]
+
+[dependency-groups]
+dev = ["ruff>=0.8", "mypy>=1.13", "types-pyyaml>=6.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ros2probe"]
+
+# --------------------------------------------------------------------------- #
+# pytest is the runner. One test per leaf of DaVROS/ros2_attack_tree.md.
+#
+#   pass   the control held
+#   fail   the leaf is present
+#   error  the run is broken: profile path missing, host or router unreachable
+#   skip   not applicable, or "undecided: <why>" when a backend could not answer
+#   xfail  cannot be decided by software
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# src layout, so the package normally comes from `uv sync` installing this project
+# into the venv. This makes a bare `pytest` work too, without an install step.
+pythonpath = ["src"]
+# ROS Jazzy's launch_testing pytest plugins are on PYTHONPATH and autoload. They
+# implement pytest_pycollect_makemodule with the `path` argument pytest removed in
+# 8, so collection dies on import. This suite drives rclpy directly and never
+# launches a node, so they are disabled rather than worked around.
+addopts = "-ra --strict-markers --tb=short -p no:launch_testing -p no:launch_ros"
+# Logs
+log_level = "INFO"
+log_file = "evidence/run.log"
+log_file_level = "DEBUG"
+log_file_format = "%(asctime)s %(levelname)s %(name)s %(message)s"
+log_file_date_format = "%Y-%m-%dT%H:%M:%S"
+markers = [
+    "leaf(id): the attack tree leaf this test decides. Its X, T and Cons values are stated in the tree document",
+    "static: reads the keystore, governance, permissions or the rmw profile (Fast DDS or Cyclone DDS)",
+    "dds: joins the target's DDS graph with rclpy",
+    "host: runs read-only commands on the target host",
+    "wire: decodes a captured RTPS stream",
+    "net: reaches a non-DDS network service on the target",
+    "intrusive: writes to the target. Requires --arm",
+    "rmw(*families): only collected when the target's rmw is one of fastdds, cyclone, zenoh",
+]
+
+# --------------------------------------------------------------------------- #
+# ruff
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["DaVROS/simulated_target/robot/graph.py", "DaVROS/simulated_target/robot/nodes.py"]
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes: unused imports and names, the main reason this is here
+    "E", "W", # pycodestyle
+    "I",      # import sorting
+    "UP",     # pyupgrade
+    "B",      # bugbear
+    "SIM",    # simplify
+    "RET",    # return-path smells
+    "PTH",    # prefer pathlib
+    "C4",     # comprehensions
+    "ARG",    # unused arguments, which is how dead parameters surface
+    "PL",     # pylint subset
+    "RUF",
+]
+ignore = [
+    "E501",
+    # Assertions are the entire point of a test suite.
+    "S101",
+    # A test that reads a target's configuration legitimately has many branches.
+    "PLR0912", "PLR0915",
+    # Magic values are readable in a security check: 0o400 and 2048 mean more
+    # inline than a constant named MODE_OWNER_READ_ONLY would.
+    "PLR2004",
+]
+
+# --------------------------------------------------------------------------- #
+# mypy
+# --------------------------------------------------------------------------- #
+[tool.mypy]
+# No python_version: check against the interpreter the venv was built for. uv
+# locks numpy per interpreter, and the 3.12 build's stubs (reached through
+# pytest) use syntax a 3.11 target rejects, which stops the run before this
+# project is checked. ruff's target-version keeps the code 3.11-compatible.
+files = ["src", "tests", "DaVROS/simulated_target/robot/graph_spec.py", "DaVROS/simulated_target/provisioning"]
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unreachable = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# rclpy, rosidl and the ROS message packages ship no stubs, and they only exist
+# inside the container anyway.
+module = ["rclpy.*", "rosidl_runtime_py.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true

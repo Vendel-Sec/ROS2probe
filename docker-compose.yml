@@ -1,0 +1,52 @@
+# ROS2probe and the DaVROS lab it runs against by default.
+#
+#   git submodule update --init DaVROS
+#   docker compose up -d --build --wait
+#   docker compose exec probe bash            # then: uv run pytest
+#
+# Against a real robot instead, without the lab:
+#
+#   docker compose --profile standalone run --rm standalone uv run pytest --target targets/<robot>.yaml
+#
+# The project is named davros, like DaVROS's own compose file, so both drive the
+# same containers and keystore volume: the configurator's "Save and recreate
+# target" and `docker compose -f DaVROS/docker-compose.yml ...` keep working.
+name: davros
+
+include:
+  - DaVROS/docker-compose.yml
+
+services:
+  # The T1 attacker on the lab's segment: network adjacent, no credentials, no
+  # account on the robot.
+  probe:
+    build: &build
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ros2probe:jazzy
+    container_name: ros2probe
+    hostname: ros2probe
+    volumes:
+      - .:/workspace
+      # Read-only view of the keystore the simulated target generated.
+      - target-keystore:/target-keystore:ro
+      # The ssh key and host key of DaVROS's assessor account, for the host backend.
+      - target-access:/target-access:ro
+    environment:
+      ROS_DOMAIN_ID: ${TARGET_DOMAIN_ID:-42}
+    cap_add: &caps
+      - NET_RAW      # tcpdump, for the wire backend
+      - NET_ADMIN
+    networks:
+      - davrosnet
+
+  # A real robot: the host's own network, so DDS discovery and the capture see
+  # the robot's segment. The host backend reaches it over ssh, per the profile.
+  standalone:
+    profiles: [standalone]
+    build: *build
+    image: ros2probe:jazzy
+    volumes:
+      - .:/workspace
+    cap_add: *caps
+    network_mode: host

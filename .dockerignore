@@ -1,0 +1,9 @@
+# The probe image needs the project metadata and the package, nothing else.
+# The checkout is bind-mounted at run time.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!docker/
+**/__pycache__

@@ -1,0 +1,66 @@
+# Copy this file, fill in what you know, delete what you don't.
+# A deleted section only skips its tests.
+
+name: my-robot
+
+robot:
+  address: 192.168.1.50             # robot IP. REQUIRED
+
+  # Host tests (branch B). Delete -> "robot.ssh not set"
+  ssh:
+    user: pentest
+    identity: ~/.ssh/id_ed25519
+    known_hosts: ~/.ssh/known_hosts   # pins the host key. Delete -> trusted on first use
+    sudo: true                        # commands through sudo -n, for the root-only reads. Needs NOPASSWD
+
+  # Procedure: run these on the robot, logged in over ssh.
+  #
+  # 1. List the ROS processes:
+  #      ps -eo pid,user,unit,args | grep -i ros | grep -v grep
+  #    Note one PID from the output; steps 3 and 4 use it in place of <PID>.
+  #
+  # 2. Find the workspace:
+  #      find / -path '*/install/setup.bash' 2>/dev/null
+  #    Found /opt/xyz/install/setup.bash -> workspace is /opt/xyz.
+  #    Found nothing -> look at the command lines of step 1:
+  #      /opt/xyz/lib/<pkg>/<node>  -> workspace is /opt/xyz
+  #      anything else              -> no workspace, delete the line
+  #
+  # 3. Read the environment ROS was started with. Run it as root or as the USER of step 1,
+  #    otherwise put sudo in front:
+  #      cat /proc/<PID>/environ | tr '\0' '\n' | grep -e ROS_ -e RMW_ -e FASTRTPS_ -e CYCLONEDDS_
+  #
+  # 4. Find the unit, if any:
+  #      cat /proc/<PID>/cgroup
+  #    A line ending in .service names the unit, e.g. 0::/system.slice/ros.service -> ros.service.
+  #    0::/ or a name ending in .scope means no unit.
+
+  ros_user: ros                     # step 1, USER column
+  ros_process_pattern: ros2         # step 1, a word found in every ROS command line
+  workspace: /opt/ros2_ws           # step 2
+  unit: ros.service                 # step 4. No .service -> delete
+  keystore: /etc/ros/keystore       # step 3, ROS_SECURITY_KEYSTORE
+  profile: /etc/ros/fastdds.xml     # step 3, FASTRTPS_DEFAULT_PROFILES_FILE, or CYCLONEDDS_URI without file://
+
+ros:
+  rmw: rmw_fastrtps_cpp             # step 3, RMW_IMPLEMENTATION: rmw_fastrtps_cpp, rmw_cyclonedds_cpp or rmw_zenoh_cpp
+  domain: 42                        # step 3, ROS_DOMAIN_ID
+  domain_scan: [0, 1, 42]           # extra domains to try
+  actuation:                        # topics that move the robot: ros2 topic list -t
+    /cmd_vel: geometry_msgs/msg/Twist
+
+# A key the client gave you, to test what an insider can do. Delete -> outsider tests only
+credentials:
+  keystore: ../copies/my-robot/keystore
+  enclave: /camera_driver           # Which CN the keystore was issued
+
+# Files copied from the robot into /workspace/copies/my-robot (scp -rp keeps file modes).
+# Paths are relative to this file. Delete -> "copies.keystore not set"
+copies:
+  keystore: ../copies/my-robot/keystore
+  profile: ../copies/my-robot/fastdds.xml
+  router_config: ../copies/my-robot/zenoh.json5   # rmw_zenoh router config, or the bridge's -c file
+
+# Network capture. Delete for Zenoh
+wire:
+  interface: eth0                   # this machine's interface on the robot network: ip -br addr

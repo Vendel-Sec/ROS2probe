@@ -1,0 +1,36 @@
+# Simulated lab target on Cyclone DDS. Start it with TARGET_RMW=rmw_cyclonedds_cpp.
+
+name: sim-lab-cyclone
+robot:
+  address: davros-target
+  # DaVROS's assessor account. Its key and the target's host key are in the
+  # target-access volume, mounted read-only at /target-access.
+  ssh:
+    user: auditor
+    identity: /target-access/id_ed25519
+    known_hosts: /target-access/known_hosts
+    sudo: true
+  ros_process_pattern: simulated_target.robot
+  workspace: /opt/ros2_ws
+  keystore: /keystore
+  profile: /keystore/cyclonedds.xml
+ros:
+  rmw: rmw_cyclonedds_cpp
+  domain: 42
+  domain_scan: [0, 1, 42, 43]
+  actuation:
+    /cmd_vel: geometry_msgs/msg/Twist
+    /goal_pose: geometry_msgs/msg/PoseStamped
+  params:
+    - {node: /motion_controller, name: max_velocity}
+    - {node: /motion_controller, name: geofence_radius}
+    - {node: /motion_controller, name: estop_engaged}
+    - {node: /mission_planner, name: max_velocity}
+credentials:
+  keystore: /target-keystore
+  enclave: /scan_publisher
+copies:
+  keystore: /target-keystore
+  profile: /target-keystore/cyclonedds.xml
+wire:
+  interface: eth0
